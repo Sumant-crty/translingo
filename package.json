@@ -1,0 +1,15 @@
+{
+  "name": "translingo-chat",
+  "version": "1.0.0",
+  "description": "Two-language chat demo with live translation via Ollama Cloud (gemma4:31b-cloud)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}
