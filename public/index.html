@@ -1,1 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Translingo — cross-language chat</title>
+<style>
+  :root{
+    --bg: #0f1416;
+    --panel: #161d20;
+    --panel-2: #1c2427;
+    --line: #2a3438;
+    --ink: #e9eef0;
+    --ink-dim: #9fb0b5;
+    --ink-faint: #66787d;
+    --user-a: #4fb0a5;
+    --user-a-dim: #274643;
+    --user-b: #c98a4b;
+    --user-b-dim: #4a3722;
+    --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    --sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:var(--sans);
+    min-height:100vh;
+    display:flex; flex-direction:column; align-items:center;
+    padding:32px 16px 60px;
+  }
+  .wrap{ width:100%; max-width:880px; }
+  header{ margin-bottom:22px; }
+  .kicker{
+    font-family:var(--mono); font-size:12px; letter-spacing:0.02em;
+    color:var(--ink-faint); margin:0 0 6px;
+  }
+  h1{ font-size:28px; margin:0 0 8px; font-weight:600; letter-spacing:-0.01em; }
+  .sub{ color:var(--ink-dim); font-size:14.5px; max-width:60ch; line-height:1.55; margin:0; }
+  .stage{
+    background:var(--panel); border:1px solid var(--line); border-radius:14px;
+    overflow:hidden; margin-top:22px;
+  }
+  .participants{ display:grid; grid-template-columns:1fr 1fr; border-bottom:1px solid var(--line); }
+  .participant{ padding:14px 16px; display:flex; align-items:center; gap:10px; }
+  .participant:first-child{ border-right:1px solid var(--line); }
+  .dot{ width:9px; height:9px; border-radius:50%; flex:none; }
+  .p-a .dot{ background:var(--user-a); }
+  .p-b .dot{ background:var(--user-b); }
+  .p-name{ font-size:14px; font-weight:600; }
+  .p-sub{ font-size:12px; color:var(--ink-faint); margin-top:1px; }
+  select{
+    margin-left:auto; background:var(--panel-2); color:var(--ink);
+    border:1px solid var(--line); border-radius:7px; padding:6px 9px;
+    font-family:var(--sans); font-size:12.5px; cursor:pointer;
+  }
+  .thread{
+    height:420px; overflow-y:auto; padding:18px 16px;
+    display:flex; flex-direction:column; gap:14px;
+  }
+  .thread::-webkit-scrollbar{ width:8px; }
+  .thread::-webkit-scrollbar-thumb{ background:var(--line); border-radius:4px; }
+  .msg{ display:flex; max-width:78%; }
+  .msg.from-a{ align-self:flex-start; }
+  .msg.from-b{ align-self:flex-end; flex-direction:row-reverse; }
+  .bubble{ border-radius:12px; padding:10px 13px; border:1px solid var(--line); position:relative; }
+  .from-a .bubble{ background:var(--user-a-dim); border-top-left-radius:4px; }
+  .from-b .bubble{ background:var(--user-b-dim); border-top-right-radius:4px; }
+  .bubble-meta{
+    font-family:var(--mono); font-size:10.5px; color:var(--ink-faint);
+    margin-bottom:4px; display:flex; gap:6px; align-items:center;
+  }
+  .from-b .bubble-meta{ justify-content:flex-end; }
+  .bubble-text{ font-size:14.5px; line-height:1.45; }
+  .bubble-orig{
+    font-size:12px; color:var(--ink-faint); margin-top:6px;
+    padding-top:6px; border-top:1px dashed var(--line);
+    display:none;
+  }
+  .bubble.show-orig .bubble-orig{ display:block; }
+  .toggle-orig{
+    font-family:var(--mono); font-size:10px; color:var(--ink-faint);
+    background:none; border:none; cursor:pointer; padding:0; margin-top:6px;
+    text-decoration:underline; text-underline-offset:2px;
+  }
+  .toggle-orig:hover{ color:var(--ink); }
+  .translating{
+    font-family:var(--mono); font-size:11px; color:var(--ink-faint);
+    display:flex; align-items:center; gap:6px;
+  }
+  .spin{
+    width:8px; height:8px; border-radius:50%;
+    border:1.5px solid var(--ink-faint); border-top-color:transparent;
+    animation:spin 0.7s linear infinite;
+  }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+  .composer{
+    border-top:1px solid var(--line); padding:12px 14px;
+    display:flex; gap:8px; background:var(--panel-2);
+  }
+  .composer select{ flex:none; width:auto; }
+  .composer input[type=text]{
+    flex:1; background:var(--panel); border:1px solid var(--line);
+    border-radius:8px; padding:9px 12px; color:var(--ink);
+    font-family:var(--sans); font-size:14px;
+  }
+  .composer input[type=text]:focus{ outline:none; border-color:var(--ink-faint); }
+  .composer button{
+    font-family:var(--sans); font-size:13.5px; font-weight:600;
+    background:var(--ink); color:var(--bg); border:none;
+    border-radius:8px; padding:9px 16px; cursor:pointer;
+  }
+  .composer button:hover{ opacity:0.88; }
+  .note{
+    margin-top:16px; font-size:12.5px; color:var(--ink-faint); line-height:1.6;
+    border-left:2px solid var(--line); padding-left:12px;
+  }
+  .note code{
+    font-family:var(--mono); background:var(--panel-2); padding:1px 5px;
+    border-radius:4px; font-size:11.5px; color:var(--ink-dim);
+  }
+  @media (max-width:600px){
+    .msg{ max-width:90%; }
+    .participants{ grid-template-columns:1fr; }
+    .participant:first-child{ border-right:none; border-bottom:1px solid var(--line); }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <p class="kicker">LIVE TRANSLATION CHAT</p>
+    <h1>Two people, two languages, one conversation</h1>
+    <p class="sub">Each side types in their own language. Every message is translated on the way to the other person, powered by Ollama Cloud (<code>gemma4:31b-cloud</code>) through this app's own server.</p>
+  </header>
+
+  <div class="stage">
+    <div class="participants">
+      <div class="participant p-a">
+        <div class="dot"></div>
+        <div>
+          <div class="p-name">Sumant</div>
+          <div class="p-sub">types in English</div>
+        </div>
+      </div>
+      <div class="participant p-b">
+        <div>
+          <div class="p-name" style="text-align:right">Rafael</div>
+          <div class="p-sub" style="text-align:right">types in Spanish</div>
+        </div>
+        <div class="dot"></div>
+      </div>
+    </div>
+
+    <div class="thread" id="thread"></div>
+
+    <div class="composer">
+      <select id="composerUser">
+        <option value="a">Sumant (en)</option>
+        <option value="b">Rafael (es)</option>
+      </select>
+      <input type="text" id="composerInput" placeholder="Type a message…" autocomplete="off">
+      <button id="composerSend">Send</button>
+    </div>
+  </div>
+
+  <p class="note">
+    Translation requests go to this app's own <code>/api/translate</code> route, which forwards
+    them to Ollama Cloud using a server-side API key. The key never reaches the browser, so it's
+    safe to deploy this publicly.
+  </p>
+</div>
+
+<script>
+const LANGS = {en:"English", es:"Spanish", fr:"French", hi:"Hindi", ja:"Japanese"};
+
+async function translate(text, fromLang, toLang){
+  if(fromLang === toLang) return text;
+
+  const res = await fetch("/api/translate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      text,
+      fromLabel: LANGS[fromLang],
+      toLabel: LANGS[toLang]
+    })
+  });
+
+  const data = await res.json();
+  if(!res.ok){
+    throw new Error(data.error || `Request failed (${res.status})`);
+  }
+  return data.translation;
+}
+
+const state = {
+  userLang: { a: "en", b: "es" },
+  userName: { a: "Sumant", b: "Rafael" }
+};
+
+const thread = document.getElementById("thread");
+
+function langSelectHTML(current){
+  return Object.entries(LANGS).map(([code,label]) =>
+    `<option value="${code}" ${code===current?"selected":""}>${label}</option>`
+  ).join("");
+}
+
+document.querySelectorAll(".participant").forEach((el, idx) => {
+  const who = idx === 0 ? "a" : "b";
+  const sel = document.createElement("select");
+  sel.innerHTML = langSelectHTML(state.userLang[who]);
+  sel.addEventListener("change", e => { state.userLang[who] = e.target.value; });
+  el.appendChild(sel);
+});
+
+function scrollToBottom(){
+  thread.scrollTop = thread.scrollHeight;
+}
+
+function addMessage({ who, originalText, originalLang }){
+  const otherWho = who === "a" ? "b" : "a";
+  const targetLang = state.userLang[otherWho];
+  const sameLang = originalLang === targetLang;
+
+  const row = document.createElement("div");
+  row.className = `msg from-${who}`;
+
+  const bubble = document.createElement("div");
+  bubble.className = "bubble";
+
+  const meta = document.createElement("div");
+  meta.className = "bubble-meta";
+  meta.textContent = `${state.userName[who]} · ${LANGS[originalLang]}`;
+  bubble.appendChild(meta);
+
+  const textEl = document.createElement("div");
+  textEl.className = "bubble-text";
+
+  if(sameLang){
+    textEl.textContent = originalText;
+    bubble.appendChild(textEl);
+  } else {
+    const loading = document.createElement("div");
+    loading.className = "translating";
+    loading.innerHTML = `<span class="spin"></span> translating…`;
+    bubble.appendChild(loading);
+
+    translate(originalText, originalLang, targetLang).then(translated => {
+      loading.remove();
+      textEl.textContent = translated;
+      bubble.appendChild(textEl);
+
+      const orig = document.createElement("div");
+      orig.className = "bubble-orig";
+      orig.textContent = `Original (${LANGS[originalLang]}): ${originalText}`;
+      bubble.appendChild(orig);
+
+      const toggle = document.createElement("button");
+      toggle.className = "toggle-orig";
+      toggle.textContent = "show original";
+      toggle.addEventListener("click", () => {
+        bubble.classList.toggle("show-orig");
+        toggle.textContent = bubble.classList.contains("show-orig") ? "hide original" : "show original";
+      });
+      bubble.appendChild(toggle);
+      scrollToBottom();
+    }).catch(err => {
+      loading.remove();
+      textEl.textContent = originalText;
+      bubble.appendChild(textEl);
+
+      const errNote = document.createElement("div");
+      errNote.className = "bubble-orig";
+      errNote.style.display = "block";
+      errNote.style.color = "#c17b6b";
+      errNote.textContent = `Translation failed (${err.message}). Showing original text.`;
+      bubble.appendChild(errNote);
+      scrollToBottom();
+    });
+  }
+
+  row.appendChild(bubble);
+  thread.appendChild(row);
+  scrollToBottom();
+}
+
+addMessage({ who:"a", originalText:"hey, are we still on for the demo tomorrow?", originalLang:"en" });
+setTimeout(() => addMessage({ who:"b", originalText:"¡sí! te envío la presentación actualizada esta noche.", originalLang:"es" }), 1400);
+setTimeout(() => addMessage({ who:"a", originalText:"sounds good, thank you", originalLang:"en" }), 2900);
+
+document.getElementById("composerSend").addEventListener("click", sendFromComposer);
+document.getElementById("composerInput").addEventListener("keydown", e => {
+  if(e.key === "Enter") sendFromComposer();
+});
+
+function sendFromComposer(){
+  const who = document.getElementById("composerUser").value;
+  const input = document.getElementById("composerInput");
+  const text = input.value.trim();
+  if(!text) return;
+  addMessage({ who, originalText:text, originalLang: state.userLang[who] });
+  input.value = "";
+}
+</script>
+</body>
+</html>
 
